@@ -1,17 +1,35 @@
 import yaml
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Set
 from pydantic import BaseModel, Field, validator
 from datetime import date
 import re
 
 class ValidationRule(BaseModel):
+    """Validation rules for extension fields.
+    
+    Attributes:
+        pattern: Optional regex pattern for string validation
+        min_length: Optional minimum length for string/number
+        max_length: Optional maximum length for string/number
+        enum: Optional list of allowed values
+    """
     pattern: Optional[str] = None
     min_length: Optional[int] = None
     max_length: Optional[int] = None
     enum: Optional[List[str]] = None
 
 class ExtensionField(BaseModel):
+    """Definition of an extension field.
+    
+    Attributes:
+        name: Field name in the external system
+        type: Data type (string, number, boolean, date)
+        namespace: Vendor/system namespace
+        description: Field description
+        required: Whether the field is required
+        validation: Optional validation rules
+    """
     name: str
     type: str
     namespace: str
@@ -20,13 +38,29 @@ class ExtensionField(BaseModel):
     validation: Optional[ValidationRule] = None
 
     @validator('type')
-    def validate_type(cls, v):
-        valid_types = ['string', 'number', 'boolean', 'date']
+    def validate_type(cls, v: str) -> str:
+        """Validate that the field type is supported.
+        
+        Args:
+            v: Type to validate
+            
+        Returns:
+            Validated type
+            
+        Raises:
+            ValueError: If type is not supported
+        """
+        valid_types = {'string', 'number', 'boolean', 'date'}
         if v not in valid_types:
             raise ValueError(f'Type must be one of {valid_types}')
         return v
 
 class ExtensionFields(BaseModel):
+    """Collection of extension field definitions.
+    
+    Attributes:
+        fields: List of extension field definitions
+    """
     fields: List[ExtensionField]
 
 def load_extension_fields(yaml_path: str = "app/schemas/extension_fields.yaml") -> ExtensionFields:
@@ -113,19 +147,71 @@ def validate_extensions(extensions: Dict[str, Any]) -> None:
                 raise ValueError(f"Invalid value for extension field: {field_name} in namespace {namespace}")
 
 class ExtensionManager:
-    def __init__(self):
-        self.schema_file = Path(__file__).parent.parent / "schemas" / "extension_fields.yaml"
+    """Manages extension fields and their validation.
+    
+    This class handles loading and validating extension field definitions
+    from YAML files, and provides methods to validate extension data
+    against these definitions.
+    
+    The extension system allows for dynamic field definitions without
+    code changes, making it easy to add support for new vendor systems
+    or field types.
+    """
+    
+    def __init__(self, yaml_path: str = "app/schemas/extension_fields.yaml"):
+        """Initialize the extension manager.
+        
+        Args:
+            yaml_path: Path to the extension fields YAML file
+        """
+        self.schema_file = Path(yaml_path)
         self.extension_schemas = self._load_schemas()
+        self._validate_schemas()
 
     def _load_schemas(self) -> Dict[str, Any]:
-        """Load extension schemas from YAML file."""
+        """Load extension schemas from YAML file.
+        
+        Returns:
+            Dict containing extension field definitions
+            
+        Raises:
+            FileNotFoundError: If YAML file doesn't exist
+            yaml.YAMLError: If YAML is invalid
+        """
         if not self.schema_file.exists():
-            return {}
+            raise FileNotFoundError(f"Extension fields YAML file not found: {self.schema_file}")
+            
         with open(self.schema_file, "r") as f:
             return yaml.safe_load(f)
 
+    def _validate_schemas(self) -> None:
+        """Validate loaded schemas for consistency.
+        
+        Raises:
+            ValueError: If schemas are invalid
+        """
+        if not isinstance(self.extension_schemas, dict):
+            raise ValueError("Extension schemas must be a dictionary")
+            
+        for namespace, schema in self.extension_schemas.items():
+            if not isinstance(schema, dict):
+                raise ValueError(f"Schema for {namespace} must be a dictionary")
+                
+            if "required" in schema and not isinstance(schema["required"], list):
+                raise ValueError(f"Required fields for {namespace} must be a list")
+                
+            if "fields" in schema and not isinstance(schema["fields"], dict):
+                raise ValueError(f"Fields for {namespace} must be a dictionary")
+
     def validate_extensions(self, extensions: Dict[str, Any]) -> None:
-        """Validate extensions against their schemas."""
+        """Validate extension fields against their schemas.
+        
+        Args:
+            extensions: Extension data to validate
+            
+        Raises:
+            ValueError: If validation fails
+        """
         if not extensions:
             return
 
@@ -133,19 +219,78 @@ class ExtensionManager:
             if namespace not in self.extension_schemas:
                 raise ValueError(f"Unknown extension namespace: {namespace}")
 
-            required_fields = self.extension_schemas[namespace].get("required", [])
+            schema = self.extension_schemas[namespace]
+            
+            # Check required fields
+            required_fields = schema.get("required", [])
             for field in required_fields:
                 if field not in data:
                     raise ValueError(f"Missing required field '{field}' in {namespace} extension")
 
-            # Validate field types if specified in schema
-            field_types = self.extension_schemas[namespace].get("fields", {})
+            # Validate field types
+            field_types = schema.get("fields", {})
             for field, value in data.items():
                 if field in field_types:
                     expected_type = field_types[field]["type"]
-                    if expected_type == "boolean" and not isinstance(value, bool):
-                        raise ValueError(f"Field '{field}' in {namespace} extension must be a boolean")
-                    elif expected_type == "string" and not isinstance(value, str):
-                        raise ValueError(f"Field '{field}' in {namespace} extension must be a string")
-                    elif expected_type == "integer" and not isinstance(value, int):
-                        raise ValueError(f"Field '{field}' in {namespace} extension must be an integer") 
+                    if not self._validate_field_type(value, expected_type):
+                        raise ValueError(
+                            f"Field '{field}' in {namespace} extension must be of type {expected_type}"
+                        )
+
+    def _validate_field_type(self, value: Any, expected_type: str) -> bool:
+        """Validate a value against its expected type.
+        
+        Args:
+            value: Value to validate
+            expected_type: Expected type name
+            
+        Returns:
+            True if value matches type, False otherwise
+        """
+        if expected_type == "boolean":
+            return isinstance(value, bool)
+        elif expected_type == "string":
+            return isinstance(value, str)
+        elif expected_type == "number":
+            return isinstance(value, (int, float))
+        elif expected_type == "date":
+            if isinstance(value, str):
+                try:
+                    date.fromisoformat(value)
+                    return True
+                except ValueError:
+                    return False
+            return isinstance(value, date)
+        return False
+
+    def get_namespace_fields(self, namespace: str) -> Dict[str, Any]:
+        """Get field definitions for a namespace.
+        
+        Args:
+            namespace: Namespace to get fields for
+            
+        Returns:
+            Dict of field definitions
+            
+        Raises:
+            ValueError: If namespace doesn't exist
+        """
+        if namespace not in self.extension_schemas:
+            raise ValueError(f"Unknown namespace: {namespace}")
+        return self.extension_schemas[namespace].get("fields", {})
+
+    def get_required_fields(self, namespace: str) -> List[str]:
+        """Get required fields for a namespace.
+        
+        Args:
+            namespace: Namespace to get required fields for
+            
+        Returns:
+            List of required field names
+            
+        Raises:
+            ValueError: If namespace doesn't exist
+        """
+        if namespace not in self.extension_schemas:
+            raise ValueError(f"Unknown namespace: {namespace}")
+        return self.extension_schemas[namespace].get("required", []) 

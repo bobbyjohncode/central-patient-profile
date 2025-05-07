@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from app.api.routes import patients
+from app.api.routes import patients, hint
 from app.db.test_db import init_test_db, get_db
 
 @asynccontextmanager
@@ -22,5 +22,6 @@ app = FastAPI(
 def read_root():
     return {"message": "Central Patient Profile Service is running"}
 
-# Include patients router with prefix
+# Include routers with prefixes
 app.include_router(patients.router, prefix="/patients", tags=["patients"])
+app.include_router(hint.router, prefix="/api", tags=["hint"])

@@ -1,0 +1,205 @@
+namespace: hint
+description: "Hint Practice Management System fields"
+
+fields:
+  practice_id:
+    type: string
+    description: "Hint's internal practice identifier"
+    required: true
+    validation:
+      pattern: "^[A-Z0-9]{8}$"
+      
+  patient_id:
+    type: string
+    description: "Hint's internal patient identifier"
+    required: true
+    validation:
+      pattern: "^[A-Z0-9]{12}$"
+      
+  membership_status:
+    type: string
+    description: "Patient's membership status"
+    required: true
+    enum:
+      - active
+      - inactive
+      - pending
+      - terminated
+      
+  insurance:
+    type: object
+    description: "Insurance information"
+    required: false
+    validation:
+      properties:
+        provider:
+          type: string
+          required: true
+        policy_number:
+          type: string
+          required: true
+        group_number:
+          type: string
+          required: false
+        plan_type:
+          type: string
+          required: false
+        coverage_start:
+          type: date
+          required: false
+        coverage_end:
+          type: date
+          required: false
+          
+  address:
+    type: object
+    description: "Patient's address"
+    required: false
+    validation:
+      properties:
+        street:
+          type: string
+          required: true
+        city:
+          type: string
+          required: true
+        state:
+          type: string
+          required: true
+        zip_code:
+          type: string
+          required: true
+          validation:
+            pattern: "^[0-9]{5}(-[0-9]{4})?$"
+        country:
+          type: string
+          required: true
+          default: "USA"
+          
+  contact_preferences:
+    type: object
+    description: "Patient's contact preferences"
+    required: false
+    validation:
+      properties:
+        preferred_contact_method:
+          type: string
+          required: true
+          enum:
+            - email
+            - phone
+            - text
+            - mail
+        preferred_language:
+          type: string
+          required: true
+          default: "en"
+        do_not_contact:
+          type: boolean
+          required: false
+          default: false
+          
+  medical_history:
+    type: object
+    description: "Patient's medical history"
+    required: false
+    validation:
+      properties:
+        allergies:
+          type: array
+          items:
+            type: string
+        medications:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                required: true
+              dosage:
+                type: string
+                required: false
+              frequency:
+                type: string
+                required: false
+        conditions:
+          type: array
+          items:
+            type: string
+        immunizations:
+          type: array
+          items:
+            type: object
+            properties:
+              vaccine:
+                type: string
+                required: true
+              date:
+                type: date
+                required: true
+                
+  visit_history:
+    type: array
+    description: "Patient's visit history"
+    required: false
+    items:
+      type: object
+      properties:
+        date:
+          type: date
+          required: true
+        provider:
+          type: string
+          required: true
+        reason:
+          type: string
+          required: false
+        notes:
+          type: string
+          required: false
+          
+  emergency_contact:
+    type: object
+    description: "Emergency contact information"
+    required: false
+    validation:
+      properties:
+        name:
+          type: string
+          required: true
+        relationship:
+          type: string
+          required: true
+        phone:
+          type: string
+          required: true
+          validation:
+            pattern: "^[0-9]{10}$"
+            
+  consents:
+    type: object
+    description: "Patient consent records"
+    required: false
+    validation:
+      properties:
+        hipaa:
+          type: object
+          required: true
+          properties:
+            signed:
+              type: boolean
+              required: true
+            date:
+              type: date
+              required: true
+        financial:
+          type: object
+          required: true
+          properties:
+            signed:
+              type: boolean
+              required: true
+            date:
+              type: date
+              required: true 
