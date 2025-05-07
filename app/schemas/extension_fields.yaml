@@ -1,0 +1,50 @@
+# Extension Fields Schema
+# This file defines the structure for external integration fields
+# Each field must have:
+# - name: The field name in the external system
+# - type: The data type (string, number, boolean, date)
+# - namespace: The vendor/system namespace
+# - description: A description of the field
+# - required: Whether the field is required (true/false)
+# - validation: Optional validation rules
+
+fields:
+  - name: external_id
+    type: string
+    namespace: epic
+    description: "Epic's unique patient identifier"
+    required: true
+    validation:
+      pattern: "^[A-Z0-9]{8}$"
+      min_length: 8
+      max_length: 8
+
+  - name: mrn
+    type: string
+    namespace: cerner
+    description: "Cerner's Medical Record Number"
+    required: true
+    validation:
+      pattern: "^[0-9]{10}$"
+      min_length: 10
+      max_length: 10
+
+  - name: insurance_provider
+    type: string
+    namespace: allscripts
+    description: "Insurance provider code"
+    required: false
+    validation:
+      enum: ["AETNA", "BLUECROSS", "CIGNA", "UNITED"]
+
+  - name: last_visit_date
+    type: date
+    namespace: epic
+    description: "Date of last visit in Epic"
+    required: false
+
+  - name: is_active
+    type: boolean
+    namespace: cerner
+    description: "Whether the patient is active in Cerner"
+    required: true 

@@ -150,4 +150,164 @@ def test_sync_patients_empty(client):
     assert data["synced"] == 0
     assert data["created"] == 0
     assert data["updated"] == 0
-    assert data["deleted"] == 0 
+    assert data["deleted"] == 0
+
+def test_create_patient_with_extensions(client):
+    """Test creating a patient with extension fields."""
+    patient_data = {
+        "first_name": "John",
+        "last_name": "Doe",
+        "date_of_birth": "1990-01-01",
+        "email": "john.doe.ext@example.com",
+        "phone": "123-456-7890",
+        "extensions": {
+            "epic": {
+                "external_id": "ABC12345",
+                "last_visit_date": "2024-03-15"
+            },
+            "cerner": {
+                "mrn": "1234567890",
+                "is_active": True
+            }
+        }
+    }
+    
+    response = client.post("/patients/", json=patient_data)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["first_name"] == patient_data["first_name"]
+    assert data["email"] == patient_data["email"]
+    assert "extensions" in data
+    assert data["extensions"]["epic"]["external_id"] == "ABC12345"
+    assert data["extensions"]["cerner"]["mrn"] == "1234567890"
+
+def test_create_patient_invalid_extension(client):
+    """Test creating a patient with invalid extension field."""
+    patient_data = {
+        "first_name": "John",
+        "last_name": "Doe",
+        "email": "john.doe.invalid@example.com",
+        "extensions": {
+            "epic": {
+                "external_id": "invalid"  # Invalid format
+            }
+        }
+    }
+    
+    response = client.post("/patients/", json=patient_data)
+    assert response.status_code == 400
+    assert "Invalid value for extension field" in response.json()["detail"]
+
+def test_update_patient_extensions(client):
+    """Test updating a patient's extension fields."""
+    # First create a patient
+    patient_data = {
+        "first_name": "Jane",
+        "last_name": "Smith",
+        "email": "jane.smith.ext@example.com",
+        "extensions": {
+            "epic": {
+                "external_id": "DEF67890"
+            }
+        }
+    }
+    
+    create_response = client.post("/patients/", json=patient_data)
+    assert create_response.status_code == 200
+    created_patient = create_response.json()
+    
+    # Update the patient with new extensions
+    update_data = {
+        "extensions": {
+            "epic": {
+                "external_id": "DEF67890",
+                "last_visit_date": "2024-03-20"
+            },
+            "cerner": {
+                "mrn": "0987654321",
+                "is_active": True
+            }
+        }
+    }
+    
+    response = client.put(f"/patients/{created_patient['id']}", json=update_data)
+    assert response.status_code == 200
+    data = response.json()
+    assert "extensions" in data
+    assert data["extensions"]["epic"]["last_visit_date"] == "2024-03-20"
+    assert data["extensions"]["cerner"]["mrn"] == "0987654321"
+
+def test_sync_patients_with_extensions(client):
+    """Test syncing patients with extension fields."""
+    # Create initial patients
+    initial_patients = [
+        {
+            "first_name": "John",
+            "last_name": "Doe",
+            "email": "john.doe.sync@example.com",
+            "extensions": {
+                "epic": {"external_id": "ABC12345"}
+            }
+        },
+        {
+            "first_name": "Jane",
+            "last_name": "Smith",
+            "email": "jane.smith.sync@example.com",
+            "extensions": {
+                "cerner": {
+                    "mrn": "1234567890",
+                    "is_active": True
+                }
+            }
+        }
+    ]
+    
+    # Create initial patients and check responses
+    for patient in initial_patients:
+        response = client.post("/patients/", json=patient)
+        print(f"Creating patient {patient['email']}: status={response.status_code}")
+        if response.status_code != 200:
+            print(f"Error: {response.json()}")
+        assert response.status_code == 200, f"Failed to create patient {patient['email']}: {response.json()}"
+    
+    # Verify initial patients exist
+    list_response = client.get("/patients/")
+    assert list_response.status_code == 200
+    initial_list = list_response.json()
+    print(f"Initial patients: {[p['email'] for p in initial_list]}")
+    assert len(initial_list) == 2, "Expected 2 initial patients"
+
+    # Prepare sync data
+    sync_data = {
+        "patients": [
+            {
+                "first_name": "John",
+                "last_name": "Doe",
+                "email": "john.doe.sync@example.com",
+                "extensions": {
+                    "epic": {
+                        "external_id": "ABC12345",
+                        "last_visit_date": "2024-03-25"
+                    }
+                }
+            },
+            {
+                "first_name": "New",
+                "last_name": "Patient",
+                "email": "new.patient.sync@example.com",
+                "extensions": {
+                    "allscripts": {
+                        "insurance_provider": "AETNA"
+                    }
+                }
+            }
+        ]
+    }
+    
+    response = client.post("/patients/sync", json=sync_data)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["synced"] == 2
+    assert data["created"] == 1
+    assert data["updated"] == 1
+    assert data["deleted"] == 1 

@@ -1,5 +1,6 @@
 import os
 import pytest
+import asyncio
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -9,24 +10,30 @@ from app.main import app
 from app.db.test_db import get_test_db, init_test_db, drop_test_db, TestingSessionLocal, engine
 from app.db.session import get_db
 
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create an instance of the default event loop for the test session."""
+    policy = asyncio.get_event_loop_policy()
+    loop = policy.new_event_loop()
+    yield loop
+    loop.close()
+
 @pytest.fixture(autouse=True)
 def setup_test_db():
-    """Fixture to set up and tear down the test database for each test."""
+    """Fixture to set up test database before each test."""
     os.environ["TESTING"] = "1"
-    init_test_db()  # Initialize fresh test database
+    init_test_db()
     yield
-    drop_test_db()  # Clean up after test
+    drop_test_db()
 
 @pytest.fixture
 def db():
     """Fixture to get a test database session."""
-    init_test_db()
+    db = TestingSessionLocal()
     try:
-        db = TestingSessionLocal()
         yield db
     finally:
         db.close()
-        drop_test_db()
 
 @pytest.fixture
 def client(db):

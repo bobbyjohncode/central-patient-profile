@@ -1,7 +1,9 @@
 import os
 import pytest
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from app.db.session import get_db, get_database_url
+from app.models.patient import Patient
 
 def test_get_db_session():
     """Test that get_db yields a valid session and closes it properly."""
@@ -16,9 +18,9 @@ def test_get_db_session():
     except StopIteration:
         pass
     
-    # Verify session is closed by checking if we can execute a query
-    with pytest.raises(Exception):
-        db.execute("SELECT 1")
+    # Verify session is closed by trying to execute a query
+    with pytest.raises(SQLAlchemyError):
+        db.query(Patient).first()
 
 def test_database_url_validation():
     """Test that the application validates DATABASE_URL."""
