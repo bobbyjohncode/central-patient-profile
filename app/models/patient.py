@@ -9,5 +9,5 @@ class Patient(Base):
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     date_of_birth = Column(Date, nullable=True)
-    email = Column(String, nullable=True)
+    email = Column(String, nullable=False, unique=True)
     phone = Column(String, nullable=True)
