@@ -110,4 +110,42 @@ def validate_extensions(extensions: Dict[str, Any]) -> None:
                 raise ValueError(f"Invalid extension field: {field_name} in namespace {namespace}")
             
             if not validate_extension_value(namespace_fields[field_name], value):
-                raise ValueError(f"Invalid value for extension field: {field_name} in namespace {namespace}") 
+                raise ValueError(f"Invalid value for extension field: {field_name} in namespace {namespace}")
+
+class ExtensionManager:
+    def __init__(self):
+        self.schema_file = Path(__file__).parent.parent / "schemas" / "extension_fields.yaml"
+        self.extension_schemas = self._load_schemas()
+
+    def _load_schemas(self) -> Dict[str, Any]:
+        """Load extension schemas from YAML file."""
+        if not self.schema_file.exists():
+            return {}
+        with open(self.schema_file, "r") as f:
+            return yaml.safe_load(f)
+
+    def validate_extensions(self, extensions: Dict[str, Any]) -> None:
+        """Validate extensions against their schemas."""
+        if not extensions:
+            return
+
+        for namespace, data in extensions.items():
+            if namespace not in self.extension_schemas:
+                raise ValueError(f"Unknown extension namespace: {namespace}")
+
+            required_fields = self.extension_schemas[namespace].get("required", [])
+            for field in required_fields:
+                if field not in data:
+                    raise ValueError(f"Missing required field '{field}' in {namespace} extension")
+
+            # Validate field types if specified in schema
+            field_types = self.extension_schemas[namespace].get("fields", {})
+            for field, value in data.items():
+                if field in field_types:
+                    expected_type = field_types[field]["type"]
+                    if expected_type == "boolean" and not isinstance(value, bool):
+                        raise ValueError(f"Field '{field}' in {namespace} extension must be a boolean")
+                    elif expected_type == "string" and not isinstance(value, str):
+                        raise ValueError(f"Field '{field}' in {namespace} extension must be a string")
+                    elif expected_type == "integer" and not isinstance(value, int):
+                        raise ValueError(f"Field '{field}' in {namespace} extension must be an integer") 

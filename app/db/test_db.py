@@ -1,30 +1,38 @@
-from sqlalchemy import create_engine
+from typing import AsyncGenerator
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-from app.db.base import Base  # Updated import to use the base with all models
+from app.db.base import Base
 
-# Use in-memory SQLite for testing
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+# Create an in-memory SQLite database for testing
+SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
-engine = create_engine(
+engine = create_async_engine(
     SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool  # Use static pool for in-memory database
+    connect_args={"check_same_thread": False}
 )
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-def init_test_db():
-    """Initialize test database with all tables."""
-    # Import all models to ensure they are registered with SQLAlchemy
-    from app.models.patient import Patient  # noqa
-    Base.metadata.create_all(bind=engine)
+TestingSessionLocal = sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False,
+)
 
-def drop_test_db():
-    Base.metadata.drop_all(bind=engine)
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """Get a database session for testing."""
+    async with TestingSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
 
-def get_test_db():
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close() 
+async def init_test_db():
+    """Initialize the test database."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+async def drop_test_db():
+    """Drop all tables in the test database."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all) 

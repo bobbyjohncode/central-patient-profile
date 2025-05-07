@@ -47,4 +47,30 @@ fields:
     type: boolean
     namespace: cerner
     description: "Whether the patient is active in Cerner"
-    required: true 
+    required: true
+
+cerner:
+  required:
+    - mrn
+    - is_active
+  fields:
+    mrn:
+      type: string
+      description: Medical Record Number
+    is_active:
+      type: boolean
+      description: Whether the patient is active in Cerner
+
+epic:
+  required:
+    - patient_id
+  fields:
+    patient_id:
+      type: string
+      description: Epic Patient ID
+    status:
+      type: string
+      description: Patient status in Epic
+    last_visit:
+      type: string
+      description: Date of last visit 

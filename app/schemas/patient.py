@@ -35,9 +35,10 @@ class PatientResponse(PatientInDBBase):
 
 class PatientSyncRequest(BaseModel):
     patients: List[PatientCreate]
+    delete_missing: bool = False
 
 class PatientSyncResponse(BaseModel):
-    synced: int
     created: int
     updated: int
     deleted: int
+    errors: List[str]

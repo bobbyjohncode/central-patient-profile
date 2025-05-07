@@ -1,18 +1,14 @@
-from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
 from app.api.routes import patients
-from app.db.init_db import init_db
-from app.db.test_db import get_test_db
-import os
+from app.db.test_db import init_test_db, get_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    if not os.getenv("TESTING"):
-        init_db()
+    """Lifespan events for the FastAPI application."""
+    # Initialize database on startup
+    await init_test_db()
     yield
-    # Shutdown
-    pass
 
 app = FastAPI(
     title="Central Patient Profile API",
